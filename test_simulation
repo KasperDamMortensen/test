@@ -9,19 +9,22 @@ import random
 
 
 def simulation():
-    """Runs a simulation of the traveling salesman problem, with user input """
+    """ """
     
-    N=ask_int('Write the initial size of the population: ')
-    N_max=ask_int('Write the maximum population where no epidemics take place: ')
-    M=ask_float('Write the mutation interval normalization term: ')
-    R=ask_float('Write the reproduction interval normalization term: ')
-    D=ask_float('Write the death interval normalization term: ')
-    omega=ask_float('Write the comfort normalization term: ')
-    time=ask_float('Write total simlation time: ')
+    filename=input('what is the name of the file containing the cities; ')
+    N=ask_N()
+    N_max=ask_Nmax()
+    M=ask_M()
+    R=ask_R()
+    D=ask_D()
+    omega=ask_omega()
+    time=float(input('Write the total simulation time; '))
     mode=ask_mode()
-    if mode==1 or mode==2:
-        printing_interval=ask_int('time units or events depending on the choosen mode: ')
-    filename=ask_filename('what is the name of the file containing the cities: ')
+    if mode==1:
+        printing_interval=float(input('time units or events depending on the choosen mode; '))
+    if mode==2:
+        printing_interval=int(input('time units or events depending on the choosen mode; '))
+    else: printing_interval=0
         
     i=0
     cities=city_generator.read_cities(filename)
@@ -44,28 +47,25 @@ def simulation():
         event_death=make_event_death(D,P,P.members[j])
         event_queue.add(event_death,EQ)
         j=j+1
-
+ 
     next_event=event_queue.next(EQ)
     current_time=event.time_of(next_event)
     events_simulated=0
     best_path=population.best(P)
-    path=path_clean(best_path)
-    cost=individual.cost(best_path)
-    n=0
     while event_queue.has_next(EQ) and time>current_time and population.size(P)>0:
 
-        if N>N_max:#applies apidemic if N>N_max
+        if N>N_max:
             population.epidemic(P)
 
-        if next_event.eventtype=="Death":#probability of applying a death event and generates a new event 
-            if (1-population.fitness(next_event.i,P)**2)>random.random() and population.contains(next_event.i,P):
+        if next_event.eventtype=="Death":
+            if (1-population.fitness(next_event.i,P)**2)>random.random():
                 P.members.remove(next_event.i)
             else: 
                 event_death=make_event_death(D,P,next_event.i,current_time)
                 event_queue.add(event_death,EQ)
                 
-        if next_event.eventtype=="Mutation":#probability of applying a mutation event and generates a new event
-            if (1-population.fitness(next_event.i,P)**2)>random.random() and population.contains(next_event.i,P):
+        if next_event.eventtype=="Mutation":
+            if (1-population.fitness(next_event.i,P)**2)>random.random():
                 individual.mutate(next_event.i)
                 if random.random()>0.7:
                     individual.mutate(next_event.i)
@@ -77,53 +77,57 @@ def simulation():
                 event_mutation=make_event_mutation(M,P,next_event.i,10,current_time)
                 event_queue.add(event_mutation,EQ)
                 
-        if next_event.eventtype=="reproduction":#applies reproduction event and creates new events for the "offspring"
-            if population.contains(next_event.i,P):
-                reproduced_individual=individual.reproduce(next_event.i)
-                population.add(reproduced_individual,P)
+        if next_event.eventtype=="reproduction":
+            reproduced_individual=individual.reproduce(next_event.i)
+            population.add(reproduced_individual,P)
                 
-                event_mutation=make_event_mutation(M,P,reproduced_individual,current_time)
-                event_queue.add(event_mutation,EQ)
+            event_mutation=make_event_mutation(M,P,reproduced_individual,current_time)
+            event_queue.add(event_mutation,EQ)
         
-                event_reproduction=make_event_reproduction(R,P,reproduced_individual,N,N_max,current_time)
-                event_queue.add(event_reproduction,EQ)
+            event_reproduction=make_event_reproduction(R,P,reproduced_individual,N,N_max,current_time)
+            event_queue.add(event_reproduction,EQ)
 
-                event_death=make_event_death(D,P,reproduced_individual,1,current_time)
-                event_queue.add(event_death,EQ)
+            event_death=make_event_death(D,P,reproduced_individual,1,current_time)
+            event_queue.add(event_death,EQ)
 
         if individual.cost(best_path)>individual.cost(population.best(P)):
-            best_path=population.best(P)
-            path=path_clean(best_path)
-            cost=individual.cost(best_path)
-        
+            best_path=population.best(P).path[:]
+        path_clean(P)
+        current_time=next_event.time
+        cost=individual.cost(best_path)
+
+
+
+        n=printing_interval
         events_simulated=events_simulated+1 
-        if (mode==1 and current_time>(printing_interval*n)):
-            print(f'\nCurrent time: {current_time}')
+        if (mode==1 and current_time>(n*printing_interval)):
+            print(f'Current time: {current_time}')
             print(f'Events simulated: {events_simulated}')
-            print(f'best path found: {path}'+f' With cost: {cost}')
+            print(f'best path found: {path_clean(P)}'+f' With cost: {cost}\n')
+            n=n+printing_interval
+            
+        if (mode==2 and events_simulated==(n*printing_interval)):
+            print(f'Current time: {current_time}')
+            print(f'Events simulated: {events_simulated}')
+            print(f'best path found: {path_clean(P)}'+f' With cost: {cost}\n')
             n=n+1
             
-        if (mode==2 and events_simulated%printing_interval==0):
-            print(f'\nCurrent time: {current_time}')
-            print(f'Events simulated: {events_simulated}')
-            print(f'best path found: {path}'+f' With cost: {cost}')
-            
-            
         if mode==3:
-            print(f'\nCurrent time: {current_time}')
+            print(f'Current time: {current_time}')
             print(f'Events simulated: {events_simulated}')
-            print(f'best path found: {path}'+f' With cost: {cost}')
+            print(f'best path found: {path_clean(P)}'+f' With cost: {cost}\n')
             
             
         next_event=event_queue.next(EQ)
-        current_time=event.time_of(next_event)
-    print('\nSimulation terminated:\n'+f'best path found: {path}'+f' With cost: {cost}')
+        
+    print('Simulation terminated:\n'+f'best path found: {path_clean(P)}'+f' With cost: {cost}')
 
-def path_clean(ind: individual)->list:
+def path_clean(P: population)->list:
     """cleans up the path for output """
     
     list=[]
     j=0
+    ind=population.best(P)
     while j<len(ind.path):
         city=ind.path[j].name
         list.append(city)
@@ -131,53 +135,118 @@ def path_clean(ind: individual)->list:
     return list
     
 def make_event_death(D: float,P: population, ind: individual,time: float=0)->event:
-    """creates a death event for the individual"""
+    """creates a death event for the individual, and puts it in the eventqueue """
     time_d=random.expovariate(D/(1-math.log(1-population.fitness(ind,P))))
     time_d=time_d+time
     event_death=event.make_event("Death",time_d,ind)
     return event_death
 
 def make_event_reproduction(R: float, P: population, ind: individual,N: int, N_max: int,time: float=0)->event:
-    """creates a repordutction event for the individual, and puts it in the eventqueue """
+    """ """
     time_r=random.expovariate((N_max/N)*(R/(1-math.log(population.fitness(ind,P)))))
     time_r=time_r+time
     event_reproduction=event.make_event("Reproduction",time_r,ind)
     return event_reproduction
 
 def make_event_mutation(M: float, P: population, ind: individual,x: int=1,time: float=0):
-    """creates a mutationdeath event for the individual, and puts it in the eventqueue """
+    """ """
     time_m=random.expovariate(x*M/(1-math.log(population.fitness(ind,P))))
     time_m=time_m+time
     event_mutation=event.make_event("Mutation",time_m,ind)
     return event_mutation
-
-def ask_int(s: str)->int:
-    """Asks the user for an int with the prompt s """
-
-    output=input(s)
+        
+def ask_N()->int:
+    """asks the user for initial size of the population """
+    N=input('Write the initial size of the population; ')
     try:
-        if int(output)>0:
-            return int(output)
+        if int(N)>0:
+            return int(N)
         else:
-            print('The provided value is not an positive integer')
-            return ask_int(s)
+            print('The provided value is not a positive integer')
+            return ask_N()
     except ValueError:
-        print ('The provided value is not an integer')
-        return ask_int(s)
-
-def ask_float(s: str)->float:
-    """Asks the user for a float with the prompt s """
-
-    output=input(s)
+        print ('The provided value is not a integer')
+        return ask_N()
+    
+def ask_D()->float:
+    """asks the user for the death interval normalization term"""
+    D=input('Write the death interval normalization term; ')
     try:
-        if float(output)>0:
-            return float(output)
+        if float(D)>0:    
+            return float(D)
         else:
-            print('The provided value is not an positive float')
-            return ask_float(s)
+            print('The provided Value is not a positive float')
+            return ask_D
     except ValueError:
-        print ('The provided value is not a float')
-        return ask_float(s)
+        print('The provided Value is not a float')
+        return ask_D
+
+def ask_Nmax()->int:
+    """asks the user for the max population size wtih no epidemics """
+    N_max=input('Write the maximum population where no epidemics take place; ')
+    try:
+        if int(N_max)>0:
+            return int(N_max)
+        else:
+            print('The provided value is not a positive integer')
+            return ask_Nmax
+    except ValueErrror:
+        print('The provided Value is not an integer')
+        return ask_Nmax()
+    
+def ask_M()->float:
+    """asks the user for the mutation interval normalization term M"""
+    M=input('Write the mutation interval normalization term; ')
+    try:
+        if float(M)>0:    
+            return float(M)
+        else:
+            print('The provided Value is not a positive float')
+            return ask_M
+    except ValueError:
+        print('The provided Value is not a float')
+        return ask_M
+    
+def ask_R()->float:
+    """asks the user for the reproduction interval normalization term R"""
+    R=input('Write the reproduction interval normalization term; ')
+    try:
+        if float(R)>0:    
+            return float(R)
+        else:
+            print('The provided value is not a positive float')
+            return ask_R
+    except ValueError:
+        print('The provided value is not a float')
+        return ask_R
+    
+def ask_omega()->float:
+    """asks the user the comfort normalization term omega"""
+    
+    omega=input('Write the comfort normalization term; ')
+    try:
+        if float(omega)>0:    
+            return float(omega)
+        else:
+            print('The provided Value is not a positive float')
+            return ask_omega
+    except ValueError:
+        print('The provided value is not a float')
+        return ask_R
+    
+def ask_time()->float:
+    """asks the user the total simulation time"""
+    
+    time=input('Write the total simulation time; ')
+    try:
+        if float(time)>0:    
+            return float(time)
+        else:
+            print('The provided Value is not a positive float')
+            return ask_time
+    except ValueError:
+        print('The provided Value is not a float')
+        return ask_time
     
 def ask_mode():
     """asks the user for the mode of simulation """
@@ -189,18 +258,7 @@ def ask_mode():
             return int(mode)
         else:
             print('The provided value is not an option')
-            return ask_mode()
     except ValueError:
         print('The provided value is not an option')
         return ask_mode()
-    
-def ask_filename(s: str)->str:
-    """Asks the user for a filename with the prompt s """
 
-    output=input(s)
-    try:
-        cities=city_generator.read_cities(output)
-        return str(output)
-    except FileNotFoundError:
-        print (f'No such file or directory: {output}')
-        return ask_filename(s)
