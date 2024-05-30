@@ -1,419 +1,189 @@
 public class Exam {
-	// Do not change this method
-	public static void main(String[] args) {
-		checkArguments(args.length > 0,
-				"You must choose a command: help, uniqueWords, lineWithMostA, consonants, or substring.");
-		switch (args[0]) {
-			case "help":
-				System.out.println(
-						"Available commands: help, uniqueWords, lineWithMostA, consonants, or substring.\nFor example, try:\n\tjava Exam uniqueWords data");
-				break;
-			case "uniqueWords":
-				checkArguments(args.length == 2, "Usage: java Exam.java uniqueWords <directory>");
-				List<LocatedWord> uniqueWords = findWordsUniqueToALine(Paths.get(args[1]));
-				System.out.println("Found " + uniqueWords.size() + " words");
-				uniqueWords.forEach( locatedWord ->
-                             System.out.println( locatedWord.word + ":" + locatedWord.filepath + ":" + locatedWord.line) );
-				break;
-			case "lineWithMostA":
-				checkArguments(args.length == 2, "Usage: java Exam.java lineWithMostA <directory>");
-				Location location = lineWithMostA(Paths.get(args[1]));
-				System.out.println("Line with most occurrences of A found at " + location.filepath + ":" + location.line );
-				break;
-			case "consonants":
-				checkArguments(args.length == 3, "Usage: java Exam.java consonants <directory> <consonants>");
-				int consonants = Integer.parseInt(args[2]);
-				Optional<LocatedWord> word = wordWithConsonants(Paths.get(args[1]), consonants);
-				word.ifPresentOrElse(
-                             locatedWord -> System.out.println("Found " + locatedWord.word + " in " + locatedWord.filepath + ":" + locatedWord.line),
-						() -> System.out.println("No word found with " + args[2] + " consonants." ) );
-				break;
-			case "substring":
-				checkArguments(args.length == 4, "Usage: java Exam.java substring <directory> <substring> <length>");
-				int length = Integer.parseInt(args[3]);
-				List<LocatedWord> words = wordsWithSubstring(Paths.get(args[1]), args[2], length);
-				if( words.size() > length ) {
-					System.out.println( "WARNING: Implementation of wordsWithSubstring computes more than " + args[3] + " words!" );
-				}
-				words.forEach(loc -> System.out.println(loc.word + ":" + loc.filepath + ":" + loc.line));
-				break;
-			default:
-				System.out.println("Unrecognised command: " + args[0] + ". Try java Exam.java help.");
-				break;
-		}
-	}
-
-	// Do not change this method
-	private static void checkArguments(Boolean check, String message) {
-		if (!check) {
-			throw new IllegalArgumentException(message);
-		}
-	}
-
-	/**
-	 * Return the unique words for each file contained in the given directory: the unique words of a file are those that appear only once in that file. This means that a unique word appears only in one of the lines of the file, and it is not repeated in that line.
-	 *
-	 * This method recursively visits a directory to find text files contained in it
-	 * and its subdirectories (and the subdirectories of these subdirectories,
-	 * etc.).
-	 *
-	 * You must consider only files ending with a ".txt" suffix. You are guaranteed
-	 * that they will be text files.
-	 *
-	 * The method should return a list of LocatedWord objects (defined by the class
-	 * at the end of this file), where each LocatedWord object should consist of:
-	 * - a word appearing only on one line of the file;
-	 * - the line containing such word;
-	 * - the path to the file containing such line.
-	 *
-	 * All words appearing only on a single line of some file must appear in the list: words
-	 * that can be in the list must be in the list.
-	 * 
-	 * Note that a word does not need to be unique to all files, just to a file. So if a word, say "Hello", appears exactly once in a file "f1.txt" and also in another file "f2.txt", then the list should contain two entries (one for each occurrence of Hello in the two files).
-	 *
-	 * Words must be considered equal without considering differences between
-	 * uppercase and lowercase letters. (Case insensitive.) For example, the words "Hello", "hEllo" and
-	 * "HELLo" must be considered equal to the word "hello".
-	 * 
-	 * 
-	 * Allowed concurrency strategies: all.
-	 *
-	 * @param dir the directory to search
-	 * @return a list of words that, within a file inside dir, appear on only one line
-	 */
-	private static List<LocatedWord> findWordsUniqueToALine(Path dir) {
-        List<LocatedWord> allUniqueWords = new ArrayList<>();
-
-        try {
-            // Walk through the directory and find all .txt files
-            Files.walk(dir)
-                .filter(Files::isRegularFile)
-                .filter(path -> path.toString().endsWith(".txt"))
-                .parallel()
-                .forEach(file -> allUniqueWords.addAll(computeUnique(file)));
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-
-        return allUniqueWords;
-    }
-
-	private static List<LocatedWord> computeUnique(Path textFile) {
-        List<LocatedWord> locatedWords = new ArrayList<>();
-        Map<String, Integer> wordCount = new ConcurrentHashMap<>();
-        List<LocatedWord> tempLocatedWords = Collections.synchronizedList(new ArrayList<>());
-
-        try {
-            List<String> lines = Files.readAllLines(textFile);
-
-            IntStream.range(0, lines.size()).parallel().forEach(index -> {
-                String line = lines.get(index);
-                String[] words = line.split("\\W+");
-                Set<String> wordsInLine = new HashSet<>();
-
-                for (String word : words) {
-                    if (word.isEmpty()) continue;  // Skip empty strings from split
-                    String lowerCaseWord = word.toLowerCase();
-
-                    // Only process the word if it hasn't appeared in this line yet
-                    if (!wordsInLine.contains(lowerCaseWord)) {
-                        wordsInLine.add(lowerCaseWord);
-                        wordCount.merge(lowerCaseWord, 1, Integer::sum);
-                        tempLocatedWords.add(new LocatedWord(lowerCaseWord, index + 1, textFile));
-                    }
+    public static void main(String[] args) {
+        checkArguments(args.length > 0,
+                "You must choose a command: help, uniqueWords, lineWithMostA, consonants, or substring.");
+        switch (args[0]) {
+            case "help":
+                System.out.println(
+                        "Available commands: help, uniqueWords, lineWithMostA, consonants, or substring.\nFor example, try:\n\tjava Exam uniqueWords data");
+                break;
+            case "uniqueWords":
+                checkArguments(args.length == 2, "Usage: java Exam.java uniqueWords <directory>");
+                List<LocatedWord> uniqueWords = findWordsUniqueToALine(Paths.get(args[1]));
+                System.out.println("Found " + uniqueWords.size() + " words");
+                uniqueWords.forEach(locatedWord -> System.out.println(locatedWord.word + ":" + locatedWord.filepath + ":" + locatedWord.line));
+                break;
+            case "lineWithMostA":
+                checkArguments(args.length == 2, "Usage: java Exam.java lineWithMostA <directory>");
+                Location location = lineWithMostA(Paths.get(args[1]));
+                System.out.println("Line with most occurrences of A found at " + location.filepath + ":" + location.line);
+                break;
+            case "consonants":
+                checkArguments(args.length == 3, "Usage: java Exam.java consonants <directory> <consonants>");
+                int consonants = Integer.parseInt(args[2]);
+                Optional<LocatedWord> word = wordWithConsonants(Paths.get(args[1]), consonants);
+                word.ifPresentOrElse(
+                        locatedWord -> System.out.println("Found " + locatedWord.word + " in " + locatedWord.filepath + ":" + locatedWord.line),
+                        () -> System.out.println("No word found with " + args[2] + " consonants."));
+                break;
+            case "substring":
+                checkArguments(args.length == 4, "Usage: java Exam.java substring <directory> <substring> <length>");
+                int length = Integer.parseInt(args[3]);
+                List<LocatedWord> words = wordsWithSubstring(Paths.get(args[1]), args[2], length);
+                if (words.size() > length) {
+                    System.out.println("WARNING: Implementation of wordsWithSubstring computes more than " + args[3] + " words!");
                 }
-            });
-
-            // Remove entries in wordCount where count is not 1
-            wordCount.entrySet().removeIf(entry -> entry.getValue() != 1);
-
-            // Remove LocatedWord objects from the list that are not in the wordCount
-            tempLocatedWords.stream().filter(lw -> wordCount.containsKey(lw.word())).forEach(locatedWords::add);
-
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-
-        return locatedWords;
-    }
-
-
-	/** Returns the line with the highest number of occurrences of the letter 'a' among all the lines
-	 * present in the text files contained in a directory.
-	 *
-	 * This method recursively visits a directory to find all the text files
-	 * contained in it and its subdirectories (and the subdirectories of these
-	 * subdirectories, etc.).
-	 *
-	 * You must consider only files ending with a ".txt" suffix. You are
-	 * guaranteed that they will be text files.
-	 *
-	 * The method should return the line which counts the highest number of occurrences of the letter 'a' (counting also 'A') found among all text files.
-	 * If multiple lines are identified as having the highest number in the same file, just return the line that comes first. If two files have lines with the same (highest) number, then return the file whose filepath comes first lexicographically. (Use the full path, or 'absolute path' in Java, or you will not compare correctly files with the same name in different directories.)
-	 * To compare strings lexicographically, you can use String::compareTo.
-	 * See also https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/String.html#compareTo(java.lang.String)
-	 * 
-	 * Allowed concurrency strategy: parallel streams.
-	 *
-	 * @param dir the directory to search
-	 * @return the line with the highest number of occurrences of 'a' found among all text files inside of dir
-	 */
-	private static Location lineWithMostA(Path dir) {
-		ConcurrentHashMap<Location, Integer> countMap = new ConcurrentHashMap<>();
-
-        try {
-            Files.walk(dir)
-                .filter(path -> path.toString().endsWith(".txt")) // isRegularFile() doesnt filter out binary files
-				.parallel()
-                .forEach(textFile -> computeNumberA(textFile, countMap));
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-
-        // Finding the Location(s) with the maximum count of 'a'
-        Optional<Map.Entry<Location, Integer>> maxEntry = countMap.entrySet().parallelStream()
-            .max(Map.Entry.comparingByValue());
-
-        // Check if there's a tie
-        List<Location> tieLocations = new ArrayList<>();
-        maxEntry.ifPresent(entry -> {
-            for (Map.Entry<Location, Integer> e : countMap.entrySet()) {
-                if (e.getValue().equals(entry.getValue())) {
-                    tieLocations.add(e.getKey());
-                }
-            }
-        });
-		
-        // If there's a tie, select the  lexicographically first file, and the first line
-        if (tieLocations.size() > 1) {
-            tieLocations.sort(Comparator.comparing((Location location) -> location.filepath().toString())
-                .thenComparingInt(Location::line));
-            return tieLocations.get(0);
-        }
-
-        return maxEntry.map(Map.Entry::getKey).orElse(null);
-    }
-
-
-	 /**
-     * Computes the number of 'a' characters in each line of the text file and updates the countMap.
-     */
-    private static void computeNumberA(Path textFile, ConcurrentHashMap<Location, Integer> countMap) {
-        try {
-            List<String> lines = Files.readAllLines(textFile);
-
-            IntStream.range(0, lines.size())
-                .parallel()
-                .forEach(index -> {
-                    String line = lines.get(index);
-                    Location location = new Location(textFile, index + 1);
-                    String lineContent = line.toLowerCase();
-                    int count = (int) lineContent.chars().filter(ch -> ch == 'a').count();
-                    countMap.merge(location, count, Integer::sum);
-                });
-        } catch (IOException e) {
-            e.printStackTrace();
+                words.forEach(loc -> System.out.println(loc.word + ":" + loc.filepath + ":" + loc.line));
+                break;
+            default:
+                System.out.println("Unrecognised command: " + args[0] + ". Try java Exam.java help.");
+                break;
         }
     }
 
-	/**
-	 * Returns an Optional<LocatedWord> (see below) about a word found in the files
-	 * of the given directory containing the given number of consonants.
-	 *
-	 * This method recursively visits a directory to find text files contained in it
-	 * and its subdirectories (and the subdirectories of these subdirectories,
-	 * etc.).
-	 *
-	 * You must consider only files ending with a ".txt" suffix. You are guaranteed
-	 * that they will be text files.
-	 *
-	 * The method should return an (optional) LocatedWord object (defined by the
-	 * class at the end of this file), consisting of:
-	 * - the word found that contains as many consonants as specified by the parameter numberOfConsonants (and no more);
-	 * - the line containing such word;
-	 * - the path to the file containing such line.
-	 *
-	 * You can consider a letter to be a consonant according to the English alphabet.
-	 *
-	 * If a word satisfying the description above can be found, then the method
-	 * should return an Optional containing the desired LocatedWord. Otherwise, if
-	 * such a word cannot be found, the method should return Optional.empty().
-	 *
-	 * This method should return as soon as possible: as soon as a satisfactory
-	 * word is found, the method should return a result without waiting for the
-	 * processing of remaining files and/or other data.
-	 *
-	 * 
-	 * Allowed concurrency strategies: all.
-	 * 
-	 * @param dir the directory to search
-	 * @param numberOfConsonants the number of consonants the word must contain
-	 * @return an optional LocatedWord about a word containing exactly n consonants
-	 */
-	private static Optional<LocatedWord> wordWithConsonants(Path dir, int numberOfConsonants) {
-        ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
-        ExecutorCompletionService<Optional<LocatedWord>> completionService = new ExecutorCompletionService<>(executor);
-        Optional<LocatedWord> result = Optional.empty();
-
-        try {
-            long pendingTasks = Files.walk(dir)
-                    .filter(path -> path.toString().endsWith(".txt"))
-                    .map(filepath -> completionService.submit(() -> computeWordWithConsonants(filepath, numberOfConsonants)))
-                    .count();
-
-            for (int i = 0; i < pendingTasks; i++) {
-                Future<Optional<LocatedWord>> future = completionService.take();
-                Optional<LocatedWord> wordOpt = future.get();
-                if (wordOpt.isPresent()) {
-                    result = wordOpt;
-                    break;
-                }
-            }
-        } catch (InterruptedException | ExecutionException | IOException e) {
-            e.printStackTrace();
-        } finally {
-            executor.shutdown();
+    private static void checkArguments(Boolean check, String message) {
+        if (!check) {
+            throw new IllegalArgumentException(message);
         }
-
-        return result;
     }
 
-    private static Optional<LocatedWord> computeWordWithConsonants(Path filepath, int numberOfConsonants) {
+    private static List<LocatedWord> findWordsUniqueToALine(Path dir) {
         try {
-            List<String> lines = Files.readAllLines(filepath);
+            ForkJoinPool forkJoinPool = new ForkJoinPool();
+            return forkJoinPool.submit(() -> {
+                return Files.walk(dir)
+                        .filter(Files::isRegularFile)
+                        .filter(path -> path.toString().endsWith(".txt"))
+                        .parallel()
+                        .flatMap(path -> processFileForUniqueWords(path).stream())
+                        .collect(Collectors.toList());
+            }).get();
+        } catch (IOException | InterruptedException | ExecutionException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static List<LocatedWord> processFileForUniqueWords(Path path) {
+        List<LocatedWord> uniqueWords = new ArrayList<>();
+        try {
+            List<String> lines = Files.readAllLines(path);
+            Map<String, Integer> wordCount = new HashMap<>();
+            Map<String, Integer> wordLine = new HashMap<>();
+
             for (int i = 0; i < lines.size(); i++) {
                 String line = lines.get(i);
-                String[] words = line.split("\\s+");
-                for (String word : words) {
-                    if (countConsonants(word) == numberOfConsonants) {
-						LocatedWord result = new LocatedWord(word, i + 1, filepath);
-                        return Optional.of( result );
+                BreakIterator iterator = BreakIterator.getWordInstance();
+                iterator.setText(line);
+                int start = iterator.first();
+                for (int end = iterator.next(); end != BreakIterator.DONE; start = end, end = iterator.next()) {
+                    String word = line.substring(start, end).toLowerCase();
+                    if (Character.isLetterOrDigit(word.charAt(0))) {
+                        wordCount.put(word, wordCount.getOrDefault(word, 0) + 1);
+                        wordLine.put(word, i);
                     }
                 }
             }
+
+            wordCount.forEach((word, count) -> {
+                if (count == 1) {
+                    uniqueWords.add(new LocatedWord(word, wordLine.get(word), path));
+                }
+            });
         } catch (IOException e) {
-            e.printStackTrace();
+            throw new RuntimeException(e);
+        }
+        return uniqueWords;
+    }
+
+    private static Location lineWithMostA(Path dir) {
+        try {
+            return Files.walk(dir)
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.toString().endsWith(".txt"))
+                    .parallel()
+                    .flatMap(path -> processFileForMostA(path).stream())
+                    .max(Comparator.comparingInt(loc -> loc.line))
+                    .orElseThrow();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static List<Location> processFileForMostA(Path path) {
+        List<Location> locations = new ArrayList<>();
+        try {
+            List<String> lines = Files.readAllLines(path);
+
+            for (int i = 0; i < lines.size(); i++) {
+                String line = lines.get(i);
+                long count = line.chars().filter(ch -> ch == 'a' || ch == 'A').count();
+                locations.add(new Location(path, i, (int) count));
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        return locations;
+    }
+
+    private static Optional<LocatedWord> wordWithConsonants(Path dir, int numberOfConsonants) {
+        ExecutorService executorService = Executors.newCachedThreadPool();
+        try {
+            List<Callable<Optional<LocatedWord>>> tasks = Files.walk(dir)
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.toString().endsWith(".txt"))
+                    .map(path -> (Callable<Optional<LocatedWord>>) () -> processFileForConsonants(path, numberOfConsonants))
+                    .collect(Collectors.toList());
+
+            List<Future<Optional<LocatedWord>>> results = executorService.invokeAll(tasks);
+            for (Future<Optional<LocatedWord>> result : results) {
+                Optional<LocatedWord> word = result.get();
+                if (word.isPresent()) {
+                    return word;
+                }
+            }
+        } catch (IOException | InterruptedException | ExecutionException e) {
+            throw new RuntimeException(e);
+        } finally {
+            executorService.shutdown();
         }
         return Optional.empty();
     }
 
-    private static int countConsonants(String word) {// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! CHECK THIS FUNCTION MAYBE REWRITE!!!!!!!!!!!!!!!!!!
-        int count = 0;
-        for (char c : word.toCharArray()) {
-            if (isConsonant(c)) {
-                count++;
-            }
-        }
-        return count;
-    }
-
-	private static boolean isConsonant(char c) { // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! CHECK THIS FUNCTION MAYBE REWRITE!!!!!!!!!!!!!!!!!!
-        return "bcdfghjklmnpqrstvwxyz".indexOf(Character.toLowerCase(c)) != -1;
-    }
-	
-
-	/** Returns a list of words found in the given directory having the given string as a substring.
-	 *
-	 * This method recursively visits a directory to find text files
-	 * contained in it and its subdirectories (and the subdirectories of these
-	 * subdirectories, etc.).
-	 *
-	 * You must consider only files ending with a ".txt" suffix. You are
-	 * guaranteed that they will be text files.
-	 *
-	 * The method should return a list of LocatedWord objects (defined by the
-	 * class at the end of this file), consisting of:
-	 * - the word that contains the given substring;
-	 * - the line containing such word;
-	 * - the path to the file containing such line.
-	 *
-	 * The size of the returned list must not exceed the given limit.
-	 * Therefore, this method should return as soon as possible: if the list
-	 * reaches the given limit at any point during the computation, no more
-	 * elements should be added to the list and remaining files and/or other lines
-	 * should not be analysed.
-	 * 
-	 * 
-	 * Allowed concurrency strategy: virtual threads.
-	 *
-	 * @param dir the directory to search
-	 * @param substring the substring to be searched for
-	 * @param limit the size limit for the returned list
-	 * @return a list of words containing the given substring
-	 */
-	public static List<LocatedWord> wordsWithSubstring(Path dir, String substring, int limit) {
-        ConcurrentLinkedQueue<LocatedWord> result = new ConcurrentLinkedQueue<>();
-        ExecutorService executor = Executors.newCachedThreadPool();
-        ExecutorCompletionService<Void> completionService = new ExecutorCompletionService<>(executor);
-        AtomicInteger foundCount = new AtomicInteger(0);
-        List<Future<Void>> futures = new ArrayList<>();
-
+    private static Optional<LocatedWord> processFileForConsonants(Path path, int numberOfConsonants) {
         try {
-            Files.walk(dir)
-                    .filter(path -> path.toString().endsWith(".txt"))
-                    .forEach(filepath -> futures.add(completionService.submit(() ->
-                            computeSubstring(filepath, substring, limit, result, foundCount), null)));
-
-            while (foundCount.get() < limit && !futures.isEmpty()) {
-                Future<Void> future = completionService.take(); 
-                futures.remove(future); 
-                try {
-                    future.get(); 
-                } catch (ExecutionException e) {
-                    e.printStackTrace();
-                }
-            }
-        } catch (InterruptedException | IOException e) {
-            e.printStackTrace();
-        } finally {
-            executor.shutdownNow();
-        }
-        return new ArrayList<>(result);
-    }
-
-    private static void computeSubstring(Path filepath, String substring, int limit,
-                                         ConcurrentLinkedQueue<LocatedWord> result, AtomicInteger foundCount) {
-        if (foundCount.get() >= limit) {
-            return;
-        }
-        try {
-            List<String> lines = Files.readAllLines(filepath);
-            for (int lineNum = 0; lineNum < lines.size(); lineNum++) {
-                String line = lines.get(lineNum);
-                if (line.contains(substring)) {
-                    LocatedWord word = new LocatedWord(substring, lineNum, filepath);
-                    result.add(word);
-                    if (foundCount.incrementAndGet() >= limit) {
-                        return;
+            List<String> lines = Files.readAllLines(path);
+            for (int i = 0; i < lines.size(); i++) {
+                String line = lines.get(i);
+                BreakIterator iterator = BreakIterator.getWordInstance();
+                iterator.setText(line);
+                int start = iterator.first();
+                for (int end = iterator.next(); end != BreakIterator.DONE; start = end, end = iterator.next()) {
+                    String word = line.substring(start, end);
+                    if (isWord(word) && countConsonants(word) == numberOfConsonants) {
+                        return Optional.of(new LocatedWord(word, i, path));
                     }
                 }
             }
         } catch (IOException e) {
-            e.printStackTrace();
+            throw new RuntimeException(e);
         }
+        return Optional.empty();
     }
 
+    private static boolean isWord(String text) {
+        return text.chars().allMatch(Character::isLetter);
+    }
 
+    private static int countConsonants(String word) {
+        return (int) word.toLowerCase().chars().filter(c -> "bcdfghjklmnpqrstvwxyz".indexOf(c) != -1).count();
+    }
 
-
-
-	// Do not change this class
-	private record LocatedWord(
-		String word, // the word
-		int line, // the line where the word has been found
-		Path filepath // the file where the word has been found
-	) {}
-
-	// Do not change this class
-	private record Location(
-		Path filepath, // the file where the word has been found
-		int line // the line number at which the word has been found
-	) {}
-
-	// Do not change this class
-	private final static class InternalException extends RuntimeException {
-		private InternalException(String message) {
-			super(message);
-		}
-	}
-}
+    private static List<LocatedWord> wordsWithSubstring(Path dir, String substring, int limit) {
+        try {
+            ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
+            List<LocatedWord> result = Collections.synchronizedList(new ArrayList<>());
+            List<Callable<Void>> tasks = Files.walk(dir)
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.toString().endsWith(".txt"))
+                    .map(path -> (Callable<Void>) () -> {
+                        processFileForSubstring(path, substring, limit
