@@ -1,264 +1,196 @@
-import city_generator 
-import city as c
-import individual
-import math
-import event_queue
-import population
-import event
-import random
+import java.io.IOException;
+import java.nio.file.*;
+import java.text.BreakIterator;
+import java.util.*;
+import java.util.concurrent.*;
+import java.util.stream.*;
 
+public class Exam {
+    public static void main(String[] args) {
+        checkArguments(args.length > 0,
+                "You must choose a command: help, uniqueWords, lineWithMostA, consonants, or substring.");
+        switch (args[0]) {
+            case "help":
+                System.out.println(
+                        "Available commands: help, uniqueWords, lineWithMostA, consonants, or substring.\nFor example, try:\n\tjava Exam uniqueWords data");
+                break;
+            case "uniqueWords":
+                checkArguments(args.length == 2, "Usage: java Exam.java uniqueWords <directory>");
+                List<LocatedWord> uniqueWords = findWordsUniqueToALine(Paths.get(args[1]));
+                System.out.println("Found " + uniqueWords.size() + " words");
+                uniqueWords.forEach(locatedWord -> System.out.println(locatedWord.word + ":" + locatedWord.filepath + ":" + locatedWord.line));
+                break;
+            case "lineWithMostA":
+                checkArguments(args.length == 2, "Usage: java Exam.java lineWithMostA <directory>");
+                Location location = lineWithMostA(Paths.get(args[1]));
+                System.out.println("Line with most occurrences of A found at " + location.filepath + ":" + location.line);
+                break;
+            case "consonants":
+                checkArguments(args.length == 3, "Usage: java Exam.java consonants <directory> <consonants>");
+                int consonants = Integer.parseInt(args[2]);
+                Optional<LocatedWord> word = wordWithConsonants(Paths.get(args[1]), consonants);
+                word.ifPresentOrElse(
+                        locatedWord -> System.out.println("Found " + locatedWord.word + " in " + locatedWord.filepath + ":" + locatedWord.line),
+                        () -> System.out.println("No word found with " + args[2] + " consonants."));
+                break;
+            case "substring":
+                checkArguments(args.length == 4, "Usage: java Exam.java substring <directory> <substring> <length>");
+                int length = Integer.parseInt(args[3]);
+                List<LocatedWord> words = wordsWithSubstring(Paths.get(args[1]), args[2], length);
+                if (words.size() > length) {
+                    System.out.println("WARNING: Implementation of wordsWithSubstring computes more than " + args[3] + " words!");
+                }
+                words.forEach(loc -> System.out.println(loc.word + ":" + loc.filepath + ":" + loc.line));
+                break;
+            default:
+                System.out.println("Unrecognised command: " + args[0] + ". Try java Exam.java help.");
+                break;
+        }
+    }
 
-def simulation():
-    """ """
-    
-    filename=input('what is the name of the file containing the cities; ')
-    N=ask_N()
-    N_max=ask_Nmax()
-    M=ask_M()
-    R=ask_R()
-    D=ask_D()
-    omega=ask_omega()
-    time=float(input('Write the total simulation time; '))
-    mode=ask_mode()
-    if mode==1:
-        printing_interval=float(input('time units or events depending on the choosen mode; '))
-    if mode==2:
-        printing_interval=int(input('time units or events depending on the choosen mode; '))
-    else: printing_interval=0
-        
-    i=0
-    cities=city_generator.read_cities(filename)
-    P=population.make_population(omega)
-    while N>i:#creates a population with N individuals 
-        ind=individual.make_individual(cities)
-        population.add(ind,P)
-        i=i+1
-    
-    j=0
-    EQ=event_queue.make_queue()
-    while N>j:#the loop creates 3 events for each individual
-        
-        event_mutation=make_event_mutation(M,P,P.members[j])
-        event_queue.add(event_mutation,EQ)
-        
-        event_reproduction=make_event_reproduction(R,P,P.members[j],N,N_max)
-        event_queue.add(event_reproduction,EQ)
+    private static void checkArguments(Boolean check, String message) {
+        if (!check) {
+            throw new IllegalArgumentException(message);
+        }
+    }
 
-        event_death=make_event_death(D,P,P.members[j])
-        event_queue.add(event_death,EQ)
-        j=j+1
- 
-    next_event=event_queue.next(EQ)
-    current_time=event.time_of(next_event)
-    events_simulated=0
-    best_path=population.best(P)
-    while event_queue.has_next(EQ) and time>current_time and population.size(P)>0:
+    private static List<LocatedWord> findWordsUniqueToALine(Path dir) {
+        try {
+            ForkJoinPool forkJoinPool = new ForkJoinPool();
+            return forkJoinPool.submit(() -> {
+                return Files.walk(dir)
+                        .filter(Files::isRegularFile)
+                        .filter(path -> path.toString().endsWith(".txt"))
+                        .parallel()
+                        .flatMap(path -> processFileForUniqueWords(path).stream())
+                        .collect(Collectors.toList());
+            }).get();
+        } catch (IOException | InterruptedException | ExecutionException e) {
+            throw new RuntimeException(e);
+        }
+    }
 
-        if N>N_max:
-            population.epidemic(P)
+    private static List<LocatedWord> processFileForUniqueWords(Path path) {
+        List<LocatedWord> uniqueWords = new ArrayList<>();
+        try {
+            List<String> lines = Files.readAllLines(path);
+            Map<String, Integer> wordCount = new HashMap<>();
+            Map<String, Integer> wordLine = new HashMap<>();
 
-        if next_event.eventtype=="Death":
-            if (1-population.fitness(next_event.i,P)**2)>random.random():
-                P.members.remove(next_event.i)
-            else: 
-                event_death=make_event_death(D,P,next_event.i,current_time)
-                event_queue.add(event_death,EQ)
-                
-        if next_event.eventtype=="Mutation":
-            if (1-population.fitness(next_event.i,P)**2)>random.random():
-                individual.mutate(next_event.i)
-                if random.random()>0.7:
-                    individual.mutate(next_event.i)
-                    if random.random()>0.85:
-                        individual.mutate(next_event.i)
-                event_mutation=make_event_mutation(M,P,next_event.i,1,current_time)
-                event_queue.add(event_mutation,EQ)
-            else:
-                event_mutation=make_event_mutation(M,P,next_event.i,10,current_time)
-                event_queue.add(event_mutation,EQ)
-                
-        if next_event.eventtype=="reproduction":
-            reproduced_individual=individual.reproduce(next_event.i)
-            population.add(reproduced_individual,P)
-                
-            event_mutation=make_event_mutation(M,P,reproduced_individual,current_time)
-            event_queue.add(event_mutation,EQ)
-        
-            event_reproduction=make_event_reproduction(R,P,reproduced_individual,N,N_max,current_time)
-            event_queue.add(event_reproduction,EQ)
+            for (int i = 0; i < lines.size(); i++) {
+                String line = lines.get(i);
+                BreakIterator iterator = BreakIterator.getWordInstance();
+                iterator.setText(line);
+                int start = iterator.first();
+                for (int end = iterator.next(); end != BreakIterator.DONE; start = end, end = iterator.next()) {
+                    String word = line.substring(start, end).toLowerCase();
+                    if (Character.isLetterOrDigit(word.charAt(0))) {
+                        wordCount.put(word, wordCount.getOrDefault(word, 0) + 1);
+                        wordLine.put(word, i);
+                    }
+                }
+            }
 
-            event_death=make_event_death(D,P,reproduced_individual,1,current_time)
-            event_queue.add(event_death,EQ)
+            wordCount.forEach((word, count) -> {
+                if (count == 1) {
+                    uniqueWords.add(new LocatedWord(word, wordLine.get(word), path));
+                }
+            });
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        return uniqueWords;
+    }
 
-        if individual.cost(best_path)>individual.cost(population.best(P)):
-            best_path=population.best(P).path[:]
-        path_clean(P)
-        current_time=next_event.time
-        cost=individual.cost(best_path)
+    private static Location lineWithMostA(Path dir) {
+        try {
+            return Files.walk(dir)
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.toString().endsWith(".txt"))
+                    .parallel()
+                    .flatMap(path -> processFileForMostA(path).stream())
+                    .max(Comparator.comparingInt(loc -> loc.line))
+                    .orElseThrow();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
 
+    private static List<Location> processFileForMostA(Path path) {
+        List<Location> locations = new ArrayList<>();
+        try {
+            List<String> lines = Files.readAllLines(path);
 
+            for (int i = 0; i < lines.size(); i++) {
+                String line = lines.get(i);
+                long count = line.chars().filter(ch -> ch == 'a' || ch == 'A').count();
+                locations.add(new Location(path, i, (int) count));
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        return locations;
+    }
 
-        n=printing_interval
-        events_simulated=events_simulated+1 
-        if (mode==1 and current_time>(n*printing_interval)):
-            print(f'Current time: {current_time}')
-            print(f'Events simulated: {events_simulated}')
-            print(f'best path found: {path_clean(P)}'+f' With cost: {cost}\n')
-            n=n+printing_interval
-            
-        if (mode==2 and events_simulated==(n*printing_interval)):
-            print(f'Current time: {current_time}')
-            print(f'Events simulated: {events_simulated}')
-            print(f'best path found: {path_clean(P)}'+f' With cost: {cost}\n')
-            n=n+1
-            
-        if mode==3:
-            print(f'Current time: {current_time}')
-            print(f'Events simulated: {events_simulated}')
-            print(f'best path found: {path_clean(P)}'+f' With cost: {cost}\n')
-            
-            
-        next_event=event_queue.next(EQ)
-        
-    print('Simulation terminated:\n'+f'best path found: {path_clean(P)}'+f' With cost: {cost}')
+    private static Optional<LocatedWord> wordWithConsonants(Path dir, int numberOfConsonants) {
+        ExecutorService executorService = Executors.newCachedThreadPool();
+        try {
+            List<Callable<Optional<LocatedWord>>> tasks = Files.walk(dir)
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.toString().endsWith(".txt"))
+                    .map(path -> (Callable<Optional<LocatedWord>>) () -> processFileForConsonants(path, numberOfConsonants))
+                    .collect(Collectors.toList());
 
-def path_clean(P: population)->list:
-    """cleans up the path for output """
-    
-    list=[]
-    j=0
-    ind=population.best(P)
-    while j<len(ind.path):
-        city=ind.path[j].name
-        list.append(city)
-        j=j+1
-    return list
-    
-def make_event_death(D: float,P: population, ind: individual,time: float=0)->event:
-    """creates a death event for the individual, and puts it in the eventqueue """
-    time_d=random.expovariate(D/(1-math.log(1-population.fitness(ind,P))))
-    time_d=time_d+time
-    event_death=event.make_event("Death",time_d,ind)
-    return event_death
+            List<Future<Optional<LocatedWord>>> results = executorService.invokeAll(tasks);
+            for (Future<Optional<LocatedWord>> result : results) {
+                Optional<LocatedWord> word = result.get();
+                if (word.isPresent()) {
+                    return word;
+                }
+            }
+        } catch (IOException | InterruptedException | ExecutionException e) {
+            throw new RuntimeException(e);
+        } finally {
+            executorService.shutdown();
+        }
+        return Optional.empty();
+    }
 
-def make_event_reproduction(R: float, P: population, ind: individual,N: int, N_max: int,time: float=0)->event:
-    """ """
-    time_r=random.expovariate((N_max/N)*(R/(1-math.log(population.fitness(ind,P)))))
-    time_r=time_r+time
-    event_reproduction=event.make_event("Reproduction",time_r,ind)
-    return event_reproduction
+    private static Optional<LocatedWord> processFileForConsonants(Path path, int numberOfConsonants) {
+        try {
+            List<String> lines = Files.readAllLines(path);
+            for (int i = 0; i < lines.size(); i++) {
+                String line = lines.get(i);
+                BreakIterator iterator = BreakIterator.getWordInstance();
+                iterator.setText(line);
+                int start = iterator.first();
+                for (int end = iterator.next(); end != BreakIterator.DONE; start = end, end = iterator.next()) {
+                    String word = line.substring(start, end);
+                    if (isWord(word) && countConsonants(word) == numberOfConsonants) {
+                        return Optional.of(new LocatedWord(word, i, path));
+                    }
+                }
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        return Optional.empty();
+    }
 
-def make_event_mutation(M: float, P: population, ind: individual,x: int=1,time: float=0):
-    """ """
-    time_m=random.expovariate(x*M/(1-math.log(population.fitness(ind,P))))
-    time_m=time_m+time
-    event_mutation=event.make_event("Mutation",time_m,ind)
-    return event_mutation
-        
-def ask_N()->int:
-    """asks the user for initial size of the population """
-    N=input('Write the initial size of the population; ')
-    try:
-        if int(N)>0:
-            return int(N)
-        else:
-            print('The provided value is not a positive integer')
-            return ask_N()
-    except ValueError:
-        print ('The provided value is not a integer')
-        return ask_N()
-    
-def ask_D()->float:
-    """asks the user for the death interval normalization term"""
-    D=input('Write the death interval normalization term; ')
-    try:
-        if float(D)>0:    
-            return float(D)
-        else:
-            print('The provided Value is not a positive float')
-            return ask_D
-    except ValueError:
-        print('The provided Value is not a float')
-        return ask_D
+    private static boolean isWord(String text) {
+        return text.chars().allMatch(Character::isLetter);
+    }
 
-def ask_Nmax()->int:
-    """asks the user for the max population size wtih no epidemics """
-    N_max=input('Write the maximum population where no epidemics take place; ')
-    try:
-        if int(N_max)>0:
-            return int(N_max)
-        else:
-            print('The provided value is not a positive integer')
-            return ask_Nmax
-    except ValueErrror:
-        print('The provided Value is not an integer')
-        return ask_Nmax()
-    
-def ask_M()->float:
-    """asks the user for the mutation interval normalization term M"""
-    M=input('Write the mutation interval normalization term; ')
-    try:
-        if float(M)>0:    
-            return float(M)
-        else:
-            print('The provided Value is not a positive float')
-            return ask_M
-    except ValueError:
-        print('The provided Value is not a float')
-        return ask_M
-    
-def ask_R()->float:
-    """asks the user for the reproduction interval normalization term R"""
-    R=input('Write the reproduction interval normalization term; ')
-    try:
-        if float(R)>0:    
-            return float(R)
-        else:
-            print('The provided value is not a positive float')
-            return ask_R
-    except ValueError:
-        print('The provided value is not a float')
-        return ask_R
-    
-def ask_omega()->float:
-    """asks the user the comfort normalization term omega"""
-    
-    omega=input('Write the comfort normalization term; ')
-    try:
-        if float(omega)>0:    
-            return float(omega)
-        else:
-            print('The provided Value is not a positive float')
-            return ask_omega
-    except ValueError:
-        print('The provided value is not a float')
-        return ask_R
-    
-def ask_time()->float:
-    """asks the user the total simulation time"""
-    
-    time=input('Write the total simulation time; ')
-    try:
-        if float(time)>0:    
-            return float(time)
-        else:
-            print('The provided Value is not a positive float')
-            return ask_time
-    except ValueError:
-        print('The provided Value is not a float')
-        return ask_time
-    
-def ask_mode():
-    """asks the user for the mode of simulation """
-    
-    print('the simulation can run in these four modes:\n 1: report every t units of time \n 2: report every n events \n 3: verboese: report everything \n 4: silent: report at the end  ')
-    mode=input('what mode should the simulation run in; ')
-    try:
-        if 5>int(mode)>0:
-            return int(mode)
-        else:
-            print('The provided value is not an option')
-    except ValueError:
-        print('The provided value is not an option')
-        return ask_mode()
+    private static int countConsonants(String word) {
+        return (int) word.toLowerCase().chars().filter(c -> "bcdfghjklmnpqrstvwxyz".indexOf(c) != -1).count();
+    }
 
+    private static List<LocatedWord> wordsWithSubstring(Path dir, String substring, int limit) {
+        try {
+            ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
+            List<LocatedWord> result = Collections.synchronizedList(new ArrayList<>());
+            List<Callable<Void>> tasks = Files.walk(dir)
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.toString().endsWith(".txt"))
+                    .map(path -> (Callable<Void>) () -> {
+                        processFileForSubstring(path, substring, limit
